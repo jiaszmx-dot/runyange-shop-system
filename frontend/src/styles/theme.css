@@ -1,0 +1,121 @@
+:root {
+  --bg-0: #f3f4f7;
+  --bg-1: #ffffff;
+  --ink-1: #14161d;
+  --ink-2: #4a4f62;
+  --line-soft: rgba(33, 36, 50, 0.1);
+  --brand-amber: #f6bd2e;
+  --brand-cocoa: #6b2414;
+  --mint: #97d7bf;
+  --teal: #90d2df;
+  --shadow-xl: 0 24px 60px rgba(26, 31, 61, 0.15);
+  --radius-xl: 26px;
+  --radius-lg: 18px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Sora", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--ink-1);
+  background:
+    radial-gradient(1200px 600px at 20% -10%, rgba(158, 220, 216, 0.32), transparent 60%),
+    radial-gradient(900px 500px at 120% 10%, rgba(252, 211, 168, 0.34), transparent 58%),
+    linear-gradient(180deg, #f7f8fb 0%, #edf0f5 100%);
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+}
+
+.soft-card {
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-soft);
+  box-shadow: 0 16px 36px rgba(18, 24, 40, 0.08);
+}
+
+.pill {
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+}
+
+.btn {
+  border: 0;
+  border-radius: 14px;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.btn-primary {
+  background: linear-gradient(120deg, #7f2f1a 0%, #a34a1f 48%, #f4be2f 100%);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(120, 45, 20, 0.35);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: rgba(11, 18, 33, 0.06);
+  color: var(--ink-1);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(25, 35, 53, 0.08);
+  font-size: 13px;
+}
+
+.table th {
+  color: #6f7488;
+  font-weight: 600;
+}
+
+.fade-in {
+  animation: fadeInUp 0.5s ease both;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 960px) {
+  body {
+    background:
+      radial-gradient(700px 380px at 50% -10%, rgba(158, 220, 216, 0.3), transparent 55%),
+      linear-gradient(180deg, #f7f8fb 0%, #edf0f5 100%);
+  }
+}

@@ -1,0 +1,16 @@
+<view class="card section">
+  <view class="title">我的卡项</view>
+  <view wx:for="{{cards}}" wx:key="id" class="item">
+    卡ID {{item.card_product_id}} · 剩余次数 {{item.balance_sessions}} · 剩余金额 {{item.balance_amount}}
+  </view>
+</view>
+
+<view class="card section">
+  <view class="title">推荐奖励进度</view>
+  <view wx:if="{{referral}}">
+    已达标 {{referral.success_count}} / {{referral.target_count}}
+  </view>
+  <view wx:if="{{referral && referral.annual_refund_status === 'eligible'}}" class="ok">
+    已满足1980元退费条件，等待总部审核
+  </view>
+</view>

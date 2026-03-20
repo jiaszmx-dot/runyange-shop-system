@@ -1,0 +1,15 @@
+<view class="card section">
+  <view class="title">选择门店</view>
+  <picker mode="selector" range="{{stores}}" range-key="name" bindchange="bindStore">
+    <view class="picker">{{stores.length ? stores[0].name : "请选择门店"}}</view>
+  </picker>
+</view>
+
+<view class="card section">
+  <view class="title">选择项目</view>
+  <picker mode="selector" range="{{services}}" range-key="name" bindchange="bindService">
+    <view class="picker">{{services.length ? services[0].name : "请选择项目"}}</view>
+  </picker>
+</view>
+
+<button class="submit" bindtap="submitBooking">确认预约</button>

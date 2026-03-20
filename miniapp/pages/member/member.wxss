@@ -1,0 +1,19 @@
+.section {
+  margin: 20rpx;
+}
+
+.title {
+  font-size: 30rpx;
+  font-weight: 700;
+  margin-bottom: 12rpx;
+}
+
+.item {
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid #eef0f5;
+}
+
+.ok {
+  color: #1e8560;
+  margin-top: 10rpx;
+}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="320" viewBox="0 0 520 320">
+  <rect width="520" height="320" rx="26" fill="#fff3e8"/>
+  <rect x="100" y="108" width="320" height="36" rx="18" fill="#7d2e1c"/>
+  <rect x="90" y="166" width="340" height="36" rx="18" fill="#8c5a2d"/>
+  <text x="96" y="246" font-size="34" fill="#5f1d10" font-family="Arial, sans-serif">艾条耗材</text>
+</svg>

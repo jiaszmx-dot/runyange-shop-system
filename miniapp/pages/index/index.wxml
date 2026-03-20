@@ -1,0 +1,20 @@
+<view class="hero card">
+  <image src="/images/logo.png" mode="widthFix" class="logo"></image>
+  <view class="title">润阳阁小儿推拿艾灸馆</view>
+  <view class="sub">全国连锁 · 跨店可用 · 年卡推荐中心</view>
+</view>
+
+<view class="card section">
+  <view class="section-title">附近门店</view>
+  <view wx:for="{{stores}}" wx:key="id" class="item">{{item.name}} · {{item.city}}</view>
+</view>
+
+<view class="card section">
+  <view class="section-title">推荐项目</view>
+  <view wx:for="{{services}}" wx:key="id" class="item">{{item.name}} · ¥{{item.price}}</view>
+</view>
+
+<view class="actions">
+  <button bindtap="gotoBooking">立即预约</button>
+  <button bindtap="gotoMember">会员中心</button>
+</view>

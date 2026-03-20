@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="420" viewBox="0 0 340 420">
+  <rect width="340" height="420" rx="24" fill="#f0f4fb"/>
+  <circle cx="170" cy="132" r="64" fill="#c8d2ec"/>
+  <rect x="110" y="220" width="120" height="140" rx="48" fill="#7c88ad"/>
+  <circle cx="146" cy="126" r="8" fill="#495064"/>
+  <circle cx="194" cy="126" r="8" fill="#495064"/>
+  <path d="M140 158 Q170 186 200 158" stroke="#495064" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <text x="84" y="394" font-size="26" fill="#42506f" font-family="Arial, sans-serif">推拿师形象</text>
+</svg>
