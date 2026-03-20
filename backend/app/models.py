@@ -79,12 +79,33 @@ class Store(Base, TimestampMixin):
     users = relationship("User", back_populates="store")
 
 
+class Department(Base, TimestampMixin):
+    __tablename__ = "departments"
+    __table_args__ = (UniqueConstraint("name", "store_id", name="uq_department_store"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    store_id: Mapped[Optional[int]] = mapped_column(ForeignKey("stores.id"))
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
 class User(Base, TimestampMixin):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     full_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    nickname_code: Mapped[str] = mapped_column(String(64), default="")
+    gender: Mapped[str] = mapped_column(String(16), default="male")
+    department_id: Mapped[Optional[int]] = mapped_column(ForeignKey("departments.id"))
+    phone: Mapped[str] = mapped_column(String(32), default="")
+    birthday: Mapped[Optional[date]] = mapped_column(Date)
+    address: Mapped[str] = mapped_column(String(255), default="")
+    commission_types_json: Mapped[str] = mapped_column(Text, default="[]")
+    avatar_url: Mapped[str] = mapped_column(Text, default="")
+    bio: Mapped[str] = mapped_column(Text, default="")
+    note: Mapped[str] = mapped_column(Text, default="")
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[Role] = mapped_column(Enum(Role), nullable=False)
     store_id: Mapped[Optional[int]] = mapped_column(ForeignKey("stores.id"))

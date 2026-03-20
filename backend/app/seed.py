@@ -8,6 +8,7 @@ from .models import (
     CardPlan,
     CommissionRule,
     Consumable,
+    Department,
     Member,
     PlanType,
     Role,
@@ -31,6 +32,20 @@ def seed_data(db: Session):
     db.add_all([hq, sh, sz])
     db.flush()
 
+    departments = [
+        Department(name="Pediatric Tuina", store_id=sh.id, sort_order=10),
+        Department(name="Moxibustion Therapy", store_id=sh.id, sort_order=20),
+        Department(name="Front Desk", store_id=sh.id, sort_order=30),
+        Department(name="Pediatric Tuina", store_id=sz.id, sort_order=10),
+        Department(name="Moxibustion Therapy", store_id=sz.id, sort_order=20),
+    ]
+    db.add_all(departments)
+    db.flush()
+
+    sh_tuina = next(d for d in departments if d.store_id == sh.id and d.name == "Pediatric Tuina")
+    sh_front = next(d for d in departments if d.store_id == sh.id and d.name == "Front Desk")
+    sz_tuina = next(d for d in departments if d.store_id == sz.id and d.name == "Pediatric Tuina")
+
     users = [
         User(
             username="hq_admin",
@@ -39,6 +54,8 @@ def seed_data(db: Session):
             role=Role.HQ_ADMIN,
             store_id=hq.id,
             base_salary=12000,
+            gender="male",
+            phone="13800000001",
         ),
         User(
             username="sh_admin",
@@ -47,6 +64,9 @@ def seed_data(db: Session):
             role=Role.STORE_ADMIN,
             store_id=sh.id,
             base_salary=9500,
+            gender="female",
+            phone="13800000002",
+            department_id=sh_front.id,
         ),
         User(
             username="sz_admin",
@@ -55,6 +75,9 @@ def seed_data(db: Session):
             role=Role.STORE_ADMIN,
             store_id=sz.id,
             base_salary=9500,
+            gender="female",
+            phone="13800000003",
+            department_id=sz_tuina.id,
         ),
         User(
             username="sh_staff_01",
@@ -63,6 +86,11 @@ def seed_data(db: Session):
             role=Role.EMPLOYEE,
             store_id=sh.id,
             base_salary=6500,
+            gender="male",
+            phone="13800000004",
+            department_id=sh_tuina.id,
+            commission_types_json='["card","recharge","times"]',
+            bio="Experienced pediatric therapist.",
         ),
     ]
     db.add_all(users)

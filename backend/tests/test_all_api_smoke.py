@@ -42,6 +42,10 @@ def test_all_routes_smoke():
     users = _assert_ok(client.get("/api/users", headers=hq)).json()
     assert len(users) >= 3
 
+    departments = _assert_ok(client.get("/api/departments", headers=sh_admin)).json()
+    assert len(departments) >= 1
+    department_id = departments[0]["id"]
+
     services = _assert_ok(client.get("/api/services", headers=sh_admin)).json()
     assert len(services) >= 1
     service_id = services[0]["id"]
@@ -80,12 +84,24 @@ def test_all_routes_smoke():
 
     _assert_ok(
         client.post(
+            "/api/departments",
+            headers=hq,
+            json={"name": f"Smoke Dept {unique}", "store_id": created_store_id, "active": True, "sort_order": 99},
+        )
+    )
+
+    _assert_ok(
+        client.post(
             "/api/users",
             headers=hq,
             json={
                 "username": f"smoke_user_{unique}",
                 "password": "Admin@123",
                 "full_name": "Smoke User",
+                "gender": "male",
+                "department_id": department_id,
+                "phone": "13800138000",
+                "commission_types": ["card", "recharge"],
                 "role": "employee",
                 "store_id": created_store_id,
                 "base_salary": 6000,

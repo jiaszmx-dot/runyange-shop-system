@@ -21,9 +21,19 @@ class LoginRequest(BaseModel):
 
 
 class UserCreate(BaseModel):
-    username: str
-    password: str
+    username: str | None = None
+    password: str | None = None
     full_name: str
+    nickname_code: str = ""
+    gender: str = "male"
+    department_id: int | None = None
+    phone: str = ""
+    birthday: date | None = None
+    address: str = ""
+    commission_types: list[str] = Field(default_factory=list)
+    avatar_url: str = ""
+    bio: str = ""
+    note: str = ""
     role: Role
     store_id: int | None = None
     base_salary: float = 0
@@ -35,10 +45,27 @@ class UserOut(BaseModel):
     id: int
     username: str
     full_name: str
+    nickname_code: str
+    gender: str
+    department_id: int | None
+    phone: str
+    birthday: date | None
+    address: str
+    commission_types_json: str
+    avatar_url: str
+    bio: str
+    note: str
     role: Role
     store_id: int | None
     base_salary: float
     is_active: bool
+
+
+class DepartmentCreate(BaseModel):
+    name: str
+    store_id: int | None = None
+    active: bool = True
+    sort_order: int = 0
 
 
 class StoreCreate(BaseModel):

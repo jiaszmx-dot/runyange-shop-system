@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import func
+from sqlalchemy import func, inspect, or_, text
 from sqlalchemy.orm import Session
 
 from app.database import DATABASE_URL, Base, engine, get_db
@@ -16,6 +16,7 @@ from app.models import (
     ChildProfile,
     CommissionRule,
     Consumable,
+    Department,
     DouyinOrder,
     InventoryMovement,
     Member,
@@ -42,6 +43,7 @@ from app.schemas import (
     CommissionRuleCreate,
     ConsumableBindInput,
     ConsumableCreate,
+    DepartmentCreate,
     DouyinOrderCreate,
     InventoryAdjustRequest,
     IssueCardRequest,
@@ -108,6 +110,78 @@ def serialize_member(member: Member):
     }
 
 
+def _safe_json_list(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    try:
+        value = json.loads(raw)
+        if isinstance(value, list):
+            return [str(x) for x in value]
+    except Exception:
+        pass
+    return []
+
+
+def _normalize_commission_types(values: list[str]) -> list[str]:
+    normalized: list[str] = []
+    for item in values:
+        key = str(item).strip()
+        if key and key not in normalized:
+            normalized.append(key)
+    return normalized
+
+
+def _serialize_user(row: User, stores_map: dict[int, Store], departments_map: dict[int, Department]):
+    department = departments_map.get(row.department_id or 0)
+    store = stores_map.get(row.store_id or 0)
+    return {
+        "id": row.id,
+        "username": row.username,
+        "full_name": row.full_name,
+        "nickname_code": row.nickname_code,
+        "gender": row.gender,
+        "department_id": row.department_id,
+        "department_name": department.name if department else "",
+        "phone": row.phone,
+        "birthday": row.birthday,
+        "address": row.address,
+        "commission_types": _safe_json_list(row.commission_types_json),
+        "avatar_url": row.avatar_url,
+        "bio": row.bio,
+        "note": row.note,
+        "role": row.role,
+        "store_id": row.store_id,
+        "store_name": store.name if store else "",
+        "base_salary": row.base_salary,
+        "is_active": row.is_active,
+    }
+
+
+def _ensure_user_extension_columns():
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+
+    existing = {col["name"] for col in inspector.get_columns("users")}
+    ddl_by_column = {
+        "nickname_code": "ALTER TABLE users ADD COLUMN nickname_code VARCHAR(64) DEFAULT ''",
+        "gender": "ALTER TABLE users ADD COLUMN gender VARCHAR(16) DEFAULT 'male'",
+        "department_id": "ALTER TABLE users ADD COLUMN department_id INTEGER",
+        "phone": "ALTER TABLE users ADD COLUMN phone VARCHAR(32) DEFAULT ''",
+        "birthday": "ALTER TABLE users ADD COLUMN birthday DATE",
+        "address": "ALTER TABLE users ADD COLUMN address VARCHAR(255) DEFAULT ''",
+        "commission_types_json": "ALTER TABLE users ADD COLUMN commission_types_json TEXT DEFAULT '[]'",
+        "avatar_url": "ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT ''",
+        "bio": "ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''",
+        "note": "ALTER TABLE users ADD COLUMN note TEXT DEFAULT ''",
+    }
+    for col, ddl in ddl_by_column.items():
+        if col in existing:
+            continue
+        with engine.begin() as conn:
+            conn.execute(text(ddl))
+
+
 def _scheduled_settlement():
     db = next(get_db())
     try:
@@ -124,6 +198,7 @@ def _scheduled_backup():
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
+    _ensure_user_extension_columns()
     with next(get_db()) as db:
         seed_data(db)
 
@@ -183,38 +258,137 @@ def create_user(
 ):
     if user.role == Role.STORE_ADMIN and payload.role == Role.HQ_ADMIN:
         raise HTTPException(status_code=403, detail="门店管理员不能创建总部账号")
+
+    target_store_id = payload.store_id or user.store_id
     if user.role == Role.STORE_ADMIN:
-        payload.store_id = user.store_id
-    existed = db.query(User).filter(User.username == payload.username).first()
-    if existed:
-        raise HTTPException(status_code=409, detail="账号已存在")
+        target_store_id = user.store_id
+
+    if payload.department_id:
+        dept = db.query(Department).filter(Department.id == payload.department_id, Department.active.is_(True)).first()
+        if not dept:
+            raise HTTPException(status_code=404, detail="所属部门不存在")
+        if user.role == Role.STORE_ADMIN and dept.store_id not in [None, user.store_id]:
+            raise HTTPException(status_code=403, detail="只能选择本店部门")
+
+    username = (payload.username or "").strip()
+    if not username:
+        username = f"emp_{target_store_id or 0}_{int(datetime.now().timestamp())}"
+    base_username = username
+    suffix = 1
+    while db.query(User).filter(User.username == username).first():
+        username = f"{base_username}_{suffix}"
+        suffix += 1
+
+    password = payload.password or "Staff@123"
+    commission_types = _normalize_commission_types(payload.commission_types)
     new_user = User(
-        username=payload.username,
+        username=username,
         full_name=payload.full_name,
+        nickname_code=payload.nickname_code,
+        gender=payload.gender,
+        department_id=payload.department_id,
+        phone=payload.phone,
+        birthday=payload.birthday,
+        address=payload.address,
+        commission_types_json=json.dumps(commission_types, ensure_ascii=False),
+        avatar_url=payload.avatar_url,
+        bio=payload.bio,
+        note=payload.note,
         role=payload.role,
-        store_id=payload.store_id,
-        hashed_password=get_password_hash(payload.password),
+        store_id=target_store_id,
+        hashed_password=get_password_hash(password),
         base_salary=payload.base_salary,
     )
     db.add(new_user)
-    write_audit_log(db, user.id, "user.create", "user", payload.username, payload.model_dump())
+    write_audit_log(db, user.id, "user.create", "user", username, payload.model_dump())
     db.commit()
     db.refresh(new_user)
-    return new_user
+    stores_map = {x.id: x for x in db.query(Store).all()}
+    departments_map = {x.id: x for x in db.query(Department).all()}
+    return _serialize_user(new_user, stores_map, departments_map)
 
 
 @app.get("/api/users")
 def list_users(
     store_id: int | None = None,
+    department_id: int | None = None,
+    q: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(Role.HQ_ADMIN, Role.STORE_ADMIN)),
 ):
-    q = db.query(User)
+    query = db.query(User)
     if user.role == Role.STORE_ADMIN:
-        q = q.filter(User.store_id == user.store_id)
+        query = query.filter(User.store_id == user.store_id)
     elif store_id:
-        q = q.filter(User.store_id == store_id)
-    return q.order_by(User.id.desc()).all()
+        query = query.filter(User.store_id == store_id)
+    if department_id:
+        query = query.filter(User.department_id == department_id)
+
+    keyword = (q or "").strip()
+    if keyword:
+        like = f"%{keyword}%"
+        query = query.filter(
+            or_(
+                User.full_name.like(like),
+                User.phone.like(like),
+                User.username.like(like),
+                User.nickname_code.like(like),
+            )
+        )
+
+    users = query.order_by(User.id.desc()).all()
+    stores_map = {x.id: x for x in db.query(Store).all()}
+    departments_map = {x.id: x for x in db.query(Department).all()}
+    return [_serialize_user(row, stores_map, departments_map) for row in users]
+
+
+@app.post("/api/departments")
+def create_department(
+    payload: DepartmentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(Role.HQ_ADMIN, Role.STORE_ADMIN)),
+):
+    target_store_id = payload.store_id
+    if user.role == Role.STORE_ADMIN:
+        target_store_id = user.store_id
+    if not payload.name.strip():
+        raise HTTPException(status_code=400, detail="部门名称不能为空")
+
+    existed_q = db.query(Department).filter(Department.name == payload.name.strip())
+    if target_store_id is None:
+        existed_q = existed_q.filter(Department.store_id.is_(None))
+    else:
+        existed_q = existed_q.filter(Department.store_id == target_store_id)
+    if existed_q.first():
+        raise HTTPException(status_code=409, detail="部门已存在")
+
+    row = Department(
+        name=payload.name.strip(),
+        store_id=target_store_id,
+        active=payload.active,
+        sort_order=payload.sort_order,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@app.get("/api/departments")
+def list_departments(
+    store_id: int | None = None,
+    active_only: bool = True,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(Role.HQ_ADMIN, Role.STORE_ADMIN, Role.EMPLOYEE)),
+):
+    q = db.query(Department)
+    if active_only:
+        q = q.filter(Department.active.is_(True))
+    if user.role in [Role.STORE_ADMIN, Role.EMPLOYEE]:
+        q = q.filter(or_(Department.store_id == user.store_id, Department.store_id.is_(None)))
+    elif store_id is not None:
+        q = q.filter(or_(Department.store_id == store_id, Department.store_id.is_(None)))
+    return q.order_by(Department.sort_order.asc(), Department.id.asc()).all()
 
 
 @app.post("/api/stores")
