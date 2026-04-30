@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420">
-  <rect width="640" height="420" rx="28" fill="#f4fbff"/>
-  <circle cx="138" cy="132" r="74" fill="#9ad6de" opacity="0.8"/>
-  <rect x="238" y="96" width="286" height="30" rx="15" fill="#2d555f" opacity="0.9"/>
-  <rect x="238" y="146" width="220" height="20" rx="10" fill="#5c8991" opacity="0.55"/>
-  <rect x="94" y="238" width="450" height="110" rx="24" fill="#fff" stroke="#9ad6de" stroke-width="3"/>
-  <text x="113" y="282" font-size="38" fill="#264750" font-family="Arial, sans-serif">小儿艾灸温扶</text>
-  <text x="113" y="318" font-size="22" fill="#58767d" font-family="Arial, sans-serif">鼻敏调护 · 体寒改善 · 四季保健</text>
-</svg>

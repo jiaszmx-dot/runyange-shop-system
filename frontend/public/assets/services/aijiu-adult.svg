@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420">
-  <rect width="640" height="420" rx="28" fill="#f4f5f9"/>
-  <circle cx="146" cy="132" r="74" fill="#cfd7eb" opacity="0.88"/>
-  <rect x="238" y="96" width="290" height="30" rx="15" fill="#303649" opacity="0.9"/>
-  <rect x="238" y="146" width="230" height="20" rx="10" fill="#67718b" opacity="0.5"/>
-  <rect x="94" y="238" width="450" height="110" rx="24" fill="#fff" stroke="#d2d7e8" stroke-width="3"/>
-  <text x="113" y="282" font-size="38" fill="#2a2f42" font-family="Arial, sans-serif">成人艾灸理疗</text>
-  <text x="113" y="318" font-size="22" fill="#67718b" font-family="Arial, sans-serif">肩颈腰背舒缓 · 深层放松</text>
-</svg>
