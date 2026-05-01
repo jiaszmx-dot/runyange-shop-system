@@ -16,6 +16,7 @@ type CashierItem = {
 
 type CartItem = CashierItem & {
   quantity: number;
+  staffId?: string;
 };
 
 type StaffMember = {
@@ -89,11 +90,13 @@ const staffMembers: StaffMember[] = [
 ];
 
 const paymentMethods = [
+  { id: "cash", label: "现金收款" },
   { id: "stored", label: "余额扣费" },
   { id: "gift", label: "赠送次数" },
   { id: "voucher", label: "项目券" },
   { id: "package", label: "次卡/疗程" },
   { id: "wechat", label: "微信收款" },
+  { id: "bank", label: "银行卡" },
 ];
 
 const categories = ["全部", "小儿项目", "成人项目", "特色项目", "商品"];
@@ -120,9 +123,6 @@ const promotions: Promotion[] = [
 
 export function CashierWorkbench() {
   const memberRef = useRef<HTMLDivElement>(null);
-  const staffRef = useRef<HTMLElement>(null);
-  const staffMenuRef = useRef<HTMLDivElement>(null);
-  const paymentRef = useRef<HTMLElement>(null);
   const orderRef = useRef<HTMLElement>(null);
   const promoRef = useRef<HTMLDivElement>(null);
 
@@ -130,26 +130,20 @@ export function CashierWorkbench() {
   const [catalogKeyword, setCatalogKeyword] = useState("");
   const [activeCategory, setActiveCategory] = useState("全部");
   const [selectedMemberId, setSelectedMemberId] = useState("");
-  const [selectedStaffId, setSelectedStaffId] = useState("");
   const [selectedPayment, setSelectedPayment] = useState("");
   const [noteEnabled, setNoteEnabled] = useState(false);
   const [note, setNote] = useState("");
   const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [staffMenuOpen, setStaffMenuOpen] = useState(false);
   const [promoMenuOpen, setPromoMenuOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedPromotionIds, setSelectedPromotionIds] = useState<string[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
 
   const selectedMember = members.find((entry) => entry.id === selectedMemberId) ?? null;
-  const selectedStaff = staffMembers.find((entry) => entry.id === selectedStaffId) ?? null;
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
       const target = event.target as Node;
-
-      if (staffMenuOpen && !staffMenuRef.current?.contains(target)) {
-        setStaffMenuOpen(false);
-      }
 
       if (promoMenuOpen && !promoRef.current?.contains(target)) {
         setPromoMenuOpen(false);
@@ -158,7 +152,7 @@ export function CashierWorkbench() {
 
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [promoMenuOpen, staffMenuOpen]);
+  }, [promoMenuOpen]);
 
   const visibleMembers = useMemo(() => {
     if (!memberKeyword.trim()) {
@@ -225,10 +219,9 @@ export function CashierWorkbench() {
   const actualAmount = Math.max(totals.memberTotal - discountTotal, 0);
 
   const missingMember = !selectedMember;
-  const missingStaff = !selectedStaff;
-  const missingPayment = !selectedPayment;
+  const missingStaff = cart.some((entry) => !entry.staffId);
   const missingCart = cart.length === 0;
-  const canSubmit = !missingMember && !missingStaff && !missingPayment && !missingCart;
+  const canOpenCheckout = !missingMember && !missingStaff && !missingCart;
 
   function addToCart(item: CashierItem) {
     setCart((current) => {
@@ -250,6 +243,12 @@ export function CashierWorkbench() {
           entry.id === id ? { ...entry, quantity: Math.max(entry.quantity + delta, 0) } : entry,
         )
         .filter((entry) => entry.quantity > 0),
+    );
+  }
+
+  function updateCartStaff(itemId: string, staffId: string) {
+    setCart((current) =>
+      current.map((entry) => (entry.id === itemId ? { ...entry, staffId } : entry)),
     );
   }
 
@@ -298,10 +297,6 @@ export function CashierWorkbench() {
   }
 
   function handleSubmit() {
-    if (canSubmit) {
-      return;
-    }
-
     setSubmitAttempted(true);
 
     if (missingMember) {
@@ -309,19 +304,25 @@ export function CashierWorkbench() {
       return;
     }
 
-    if (missingStaff) {
-      staffRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-
-    if (missingPayment) {
-      paymentRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-
     if (missingCart) {
       orderRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
     }
+
+    if (missingStaff) {
+      orderRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    setCheckoutOpen(true);
+  }
+
+  function confirmCheckout() {
+    if (!selectedPayment) {
+      return;
+    }
+
+    setCheckoutOpen(false);
   }
 
   return (
@@ -348,7 +349,7 @@ export function CashierWorkbench() {
 
         <div className="cashier-top-actions">
           <span>润阳阁总店</span>
-          <span>收银员：{selectedStaff?.name ?? "未选择"}</span>
+          <span>收银员：前台</span>
           <button className="cashier-header-button" type="button">
             今日交班
           </button>
@@ -370,30 +371,56 @@ export function CashierWorkbench() {
         </aside>
 
         <section className="cashier-order-pane">
-          <div className="cashier-order-header">
+          <div className={selectedMember ? "cashier-order-header has-member" : "cashier-order-header"}>
             <div className="cashier-order-header-copy">
               <span className="cashier-pane-kicker">会员识别</span>
-              <h2>选择会员</h2>
             </div>
 
-            <div
-              className={submitAttempted && missingMember ? "cashier-member-control is-error" : "cashier-member-control"}
-              ref={memberRef}
-            >
-              <label className="cashier-search-box" htmlFor="cashier-member-search">
-                <input
-                  id="cashier-member-search"
-                  onChange={(event) => handleMemberSearchChange(event.target.value)}
-                  placeholder="搜索会员 / 孩子 / 手机号"
-                  type="text"
-                  value={memberKeyword}
-                />
-              </label>
-            </div>
+            {selectedMember ? (
+              <div className="cashier-member-summary in-header">
+                <div className="cashier-member-main">
+                  <span className="cashier-member-tag">{selectedMember.tag}</span>
+                  <h3>{selectedMember.name}</h3>
+                  <p>服务对象：{selectedMember.child}</p>
+                </div>
 
-            <button className="cashier-primary-ghost" type="button">
-              新增会员
-            </button>
+                <div className="cashier-balance-box">
+                  <strong>{currency.format(selectedMember.balance)}</strong>
+                  <span>储值余额</span>
+                </div>
+
+                <div className="cashier-member-benefits">
+                  <span>{selectedMember.packages}</span>
+                  <small>{selectedMember.vouchers}</small>
+                  <button className="cashier-inline-link" onClick={resetMemberSelection} type="button">
+                    重新选择
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div
+                  className={
+                    submitAttempted && missingMember ? "cashier-member-control is-error" : "cashier-member-control"
+                  }
+                  ref={memberRef}
+                >
+                  <label className="cashier-search-box" htmlFor="cashier-member-search">
+                    <input
+                      id="cashier-member-search"
+                      onChange={(event) => handleMemberSearchChange(event.target.value)}
+                      placeholder="搜索会员 / 孩子 / 手机号"
+                      type="text"
+                      value={memberKeyword}
+                    />
+                  </label>
+                </div>
+
+                <button className="cashier-primary-ghost" type="button">
+                  新增会员
+                </button>
+              </>
+            )}
           </div>
 
           <div className="cashier-field-stack">
@@ -420,134 +447,9 @@ export function CashierWorkbench() {
               </div>
             ) : null}
 
-            {selectedMember ? (
-              <div className="cashier-member-summary">
-                <div className="cashier-member-main">
-                  <span className="cashier-member-tag">{selectedMember.tag}</span>
-                  <h3>{selectedMember.name}</h3>
-                  <p>服务对象：{selectedMember.child}</p>
-                </div>
-
-                <div className="cashier-balance-box">
-                  <strong>{currency.format(selectedMember.balance)}</strong>
-                  <span>储值余额</span>
-                </div>
-
-                <div className="cashier-member-benefits">
-                  <span>{selectedMember.packages}</span>
-                  <small>{selectedMember.vouchers}</small>
-                  <button className="cashier-inline-link" onClick={resetMemberSelection} type="button">
-                    重新选择
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
             {submitAttempted && missingMember ? (
               <p className="cashier-error-text">请先通过搜索选择会员，再继续后续收银流程。</p>
             ) : null}
-          </div>
-
-          <div className="cashier-inline-fields">
-            <section
-              className={submitAttempted && missingStaff ? "cashier-inline-card is-error" : "cashier-inline-card"}
-              ref={staffRef}
-            >
-              <div className="cashier-inline-head">
-                <strong>员工选择</strong>
-                <span>指定本单服务归属</span>
-              </div>
-
-              <div className="cashier-inline-body">
-                <div
-                  className={staffMenuOpen ? "cashier-staff-picker is-open" : "cashier-staff-picker"}
-                  ref={staffMenuRef}
-                >
-                  <button
-                    aria-expanded={staffMenuOpen}
-                    className={selectedStaff ? "cashier-staff-trigger has-value" : "cashier-staff-trigger"}
-                    onClick={() => setStaffMenuOpen((current) => !current)}
-                    type="button"
-                  >
-                    {selectedStaff ? (
-                      <>
-                        <span className="cashier-avatar">{selectedStaff.avatar}</span>
-                        <span className="cashier-staff-copy">
-                          <strong>{selectedStaff.name}</strong>
-                          <small>{selectedStaff.role}</small>
-                        </span>
-                      </>
-                    ) : (
-                      <span className="cashier-staff-placeholder">请选择员工</span>
-                    )}
-                    <span className="cashier-chevron">▾</span>
-                  </button>
-
-                  {staffMenuOpen ? (
-                    <div className="cashier-staff-menu">
-                      {staffMembers.map((entry) => (
-                        <button
-                          className={entry.id === selectedStaffId ? "cashier-staff-option active" : "cashier-staff-option"}
-                          key={entry.id}
-                          onClick={() => {
-                            setSelectedStaffId(entry.id);
-                            setStaffMenuOpen(false);
-                          }}
-                          type="button"
-                        >
-                          <span className="cashier-avatar">{entry.avatar}</span>
-                          <span className="cashier-staff-copy">
-                            <strong>{entry.name}</strong>
-                            <small>{entry.role}</small>
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-
-                {submitAttempted && missingStaff ? (
-                  <p className="cashier-error-text">请先选择本单归属员工。</p>
-                ) : null}
-              </div>
-            </section>
-
-            <section
-              className={
-                submitAttempted && missingPayment
-                  ? "cashier-inline-card stacked is-error"
-                  : "cashier-inline-card stacked"
-              }
-              ref={paymentRef}
-            >
-              <div className="cashier-inline-head">
-                <strong>支付方式</strong>
-              </div>
-
-              <div className="cashier-inline-body">
-                <label className="cashier-payment-select" htmlFor="cashier-payment-method">
-                  <select
-                    id="cashier-payment-method"
-                    onChange={(event) => setSelectedPayment(event.target.value)}
-                    value={selectedPayment}
-                  >
-                    <option disabled value="">
-                      请选择支付方式
-                    </option>
-                    {paymentMethods.map((entry) => (
-                      <option key={entry.id} value={entry.id}>
-                        {entry.label}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="cashier-select-chevron">▾</span>
-                </label>
-
-                {submitAttempted && missingPayment ? (
-                  <p className="cashier-error-text">请先选择本单支付或扣费方式。</p>
-                ) : null}
-              </div>
-            </section>
           </div>
 
           <div className="cashier-order-scroll">
@@ -567,7 +469,14 @@ export function CashierWorkbench() {
               {cart.length > 0 ? (
                 <div className="cashier-cart-list">
                   {cart.map((entry) => (
-                    <article className="cashier-cart-row" key={entry.id}>
+                    <article
+                      className={
+                        submitAttempted && !entry.staffId
+                          ? "cashier-cart-row is-missing-staff"
+                          : "cashier-cart-row"
+                      }
+                      key={entry.id}
+                    >
                       <div className="cashier-cart-main">
                         <strong>{entry.name}</strong>
                         <span>
@@ -575,19 +484,39 @@ export function CashierWorkbench() {
                         </span>
                       </div>
 
-                      <div className="cashier-cart-stepper">
-                        <button onClick={() => updateQuantity(entry.id, -1)} type="button">
-                          -
-                        </button>
-                        <span>{entry.quantity}</span>
-                        <button onClick={() => updateQuantity(entry.id, 1)} type="button">
-                          +
-                        </button>
-                      </div>
+                      <label className="cashier-cart-staff" htmlFor={`cashier-staff-${entry.id}`}>
+                        <span>员工</span>
+                        <select
+                          id={`cashier-staff-${entry.id}`}
+                          onChange={(event) => updateCartStaff(entry.id, event.target.value)}
+                          value={entry.staffId ?? ""}
+                        >
+                          <option disabled value="">
+                            选择员工
+                          </option>
+                          {staffMembers.map((staff) => (
+                            <option key={staff.id} value={staff.id}>
+                              {staff.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
 
-                      <strong className="cashier-cart-amount">
-                        {currency.format(entry.memberPrice * entry.quantity)}
-                      </strong>
+                      <div className="cashier-cart-total">
+                        <div className="cashier-cart-stepper">
+                          <button onClick={() => updateQuantity(entry.id, -1)} type="button">
+                            -
+                          </button>
+                          <span>{entry.quantity}</span>
+                          <button onClick={() => updateQuantity(entry.id, 1)} type="button">
+                            +
+                          </button>
+                        </div>
+
+                        <strong className="cashier-cart-amount">
+                          {currency.format(entry.memberPrice * entry.quantity)}
+                        </strong>
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -597,6 +526,10 @@ export function CashierWorkbench() {
 
               {submitAttempted && missingCart ? (
                 <p className="cashier-error-text">请先添加至少 1 个服务或商品。</p>
+              ) : null}
+
+              {submitAttempted && !missingCart && missingStaff ? (
+                <p className="cashier-error-text">请给每个本单项目选择归属员工。</p>
               ) : null}
             </section>
 
@@ -719,8 +652,10 @@ export function CashierWorkbench() {
                 挂单
               </button>
               <button
-                aria-disabled={!canSubmit}
-                className={canSubmit ? "cashier-footer-button primary" : "cashier-footer-button primary is-disabled"}
+                aria-disabled={!canOpenCheckout}
+                className={
+                  canOpenCheckout ? "cashier-footer-button primary" : "cashier-footer-button primary is-disabled"
+                }
                 onClick={handleSubmit}
                 type="button"
               >
@@ -790,6 +725,91 @@ export function CashierWorkbench() {
           </div>
         </section>
       </div>
+
+      {checkoutOpen ? (
+        <div className="cashier-checkout-backdrop" role="presentation">
+          <section aria-modal="true" className="cashier-checkout-modal" role="dialog">
+            <header className="cashier-checkout-header">
+              <div>
+                <span className="cashier-pane-kicker">收银结账</span>
+                <h2>确认本单实收</h2>
+              </div>
+              <button
+                aria-label="关闭结账窗口"
+                className="cashier-checkout-close"
+                onClick={() => setCheckoutOpen(false)}
+                type="button"
+              >
+                ×
+              </button>
+            </header>
+
+            <div className="cashier-checkout-body">
+              <section className="cashier-checkout-member">
+                <div className="cashier-member-main">
+                  <span className="cashier-member-tag">{selectedMember?.tag ?? "散客"}</span>
+                  <h3>{selectedMember?.name ?? "未选择会员"}</h3>
+                  <p>{selectedMember ? `服务对象：${selectedMember.child}` : "请先选择会员"}</p>
+                </div>
+                <div className="cashier-balance-box">
+                  <strong>{selectedMember ? currency.format(selectedMember.balance) : currency.format(0)}</strong>
+                  <span>可用余额</span>
+                </div>
+              </section>
+
+              <section className="cashier-checkout-summary">
+                <div>
+                  <span>应收金额</span>
+                  <strong>{currency.format(actualAmount)}</strong>
+                </div>
+                <div>
+                  <span>本单优惠</span>
+                  <strong>{currency.format(discountTotal)}</strong>
+                </div>
+                <div>
+                  <span>合计数量</span>
+                  <strong>{totals.count}</strong>
+                </div>
+              </section>
+
+              <section className="cashier-checkout-section">
+                <div className="cashier-block-head">
+                  <strong>付款方式</strong>
+                  <span>{selectedPayment ? "已选择付款方式" : "请选择本单收款或扣费方式"}</span>
+                </div>
+                <div className="cashier-checkout-methods">
+                  {paymentMethods.map((entry) => (
+                    <button
+                      className={entry.id === selectedPayment ? "active" : ""}
+                      key={entry.id}
+                      onClick={() => setSelectedPayment(entry.id)}
+                      type="button"
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <footer className="cashier-checkout-actions">
+              <button className="cashier-footer-button" onClick={() => setCheckoutOpen(false)} type="button">
+                返回修改
+              </button>
+              <button
+                aria-disabled={!selectedPayment}
+                className={
+                  selectedPayment ? "cashier-footer-button primary" : "cashier-footer-button primary is-disabled"
+                }
+                onClick={confirmCheckout}
+                type="button"
+              >
+                确认支付：{currency.format(actualAmount)}
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
