@@ -1,0 +1,691 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StoreOwnershipType {
+  DIRECT
+  FRANCHISE
+}
+
+enum StoreStatus {
+  ACTIVE
+  INACTIVE
+  PREPARING
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum UserRole {
+  HQ_SUPER_ADMIN
+  HQ_OPERATOR
+  STORE_MANAGER
+  CASHIER
+  THERAPIST
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+}
+
+enum FamilyRelation {
+  SELF
+  CHILD
+  SPOUSE
+  PARENT
+  OTHER
+}
+
+enum ServicePricingUnit {
+  PER_VISIT
+  PER_HOUR
+}
+
+enum InventoryItemType {
+  PRODUCT
+  CONSUMABLE
+}
+
+enum InventoryMovementType {
+  PURCHASE_IN
+  MANUAL_ADJUST
+  SALE_OUT
+  SERVICE_OUT
+  TRANSFER_IN
+  TRANSFER_OUT
+  REFUND_IN
+}
+
+enum OrderStatus {
+  DRAFT
+  COMPLETED
+  PARTIALLY_REFUNDED
+  REFUNDED
+  VOIDED
+}
+
+enum OrderLineType {
+  SERVICE
+  PRODUCT
+}
+
+enum SettlementMethod {
+  CASH
+  BANK_CARD
+  WECHAT_OFFLINE
+  ALIPAY_OFFLINE
+  WECHAT_PAY
+  ALIPAY_PAY
+  MEMBER_BALANCE
+  PACKAGE
+  GIFT_TIMES
+  PROJECT_VOUCHER
+  VOUCHER
+}
+
+enum SettlementStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum MemberAccountType {
+  STORED_VALUE
+  GIFT_VALUE
+}
+
+enum PackageGrantType {
+  RECHARGE_GIFT
+  PURCHASED_PACKAGE
+  MANUAL_GRANT
+}
+
+enum CommissionEntryType {
+  SERVICE
+  RECHARGE
+  REVERSAL
+}
+
+enum FollowUpTaskType {
+  RETURN_VISIT
+  BIRTHDAY
+  RECHARGE_REMINDER
+  PACKAGE_REMINDER
+  CUSTOM
+}
+
+enum TaskStatus {
+  PENDING
+  DONE
+  CANCELLED
+}
+
+enum VoucherStatus {
+  ACTIVE
+  REDEEMED
+  EXPIRED
+  VOIDED
+}
+
+enum PromotionCampaignType {
+  VOUCHER
+  REFERRAL_CASHBACK
+}
+
+enum RewardPayoutType {
+  CASHBACK
+  STORED_VALUE
+}
+
+model Organization {
+  id          String          @id @default(cuid())
+  name        String
+  brandName   String?
+  code        String          @unique
+  status      StoreStatus     @default(ACTIVE)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  stores      Store[]
+  users       User[]
+  members     Member[]
+  rechargePlans RechargePlan[]
+  serviceCategories ServiceCategory[]
+  productCategories ProductCategory[]
+  promotions  PromotionCampaign[]
+}
+
+model Store {
+  id            String             @id @default(cuid())
+  organizationId String
+  code          String
+  name          String
+  ownershipType StoreOwnershipType
+  status        StoreStatus        @default(ACTIVE)
+  phone         String?
+  address       String?
+  allowsPricingOverride Boolean    @default(true)
+  allowsPromotionOverride Boolean  @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  organization  Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userAccesses  UserAccess[]
+  members       Member[]
+  servicePrices StoreServicePrice[]
+  productPrices StoreProductPrice[]
+  inventoryItems InventoryItem[]
+  orders        SalesOrder[]
+  refunds       RefundRecord[]
+  followUpTasks FollowUpTask[]
+  vouchers      Voucher[]
+
+  @@unique([organizationId, code])
+}
+
+model User {
+  id             String       @id @default(cuid())
+  organizationId String
+  fullName       String
+  phone          String       @unique
+  email          String?      @unique
+  passwordHash   String?
+  status         UserStatus   @default(INVITED)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  accesses       UserAccess[]
+  createdOrders  SalesOrder[] @relation("SalesOrderCreator")
+  orderAssignments OrderLineAssignment[]
+  commissionEntries CommissionEntry[]
+  voucherRedemptions VoucherRedemption[]
+  followUpTasks  FollowUpTask[] @relation("TaskOwner")
+  followUps      FollowUpRecord[] @relation("FollowUpActor")
+  auditLogs      AuditLog[]
+}
+
+model UserAccess {
+  id          String    @id @default(cuid())
+  userId      String
+  storeId     String?
+  role        UserRole
+  canViewAllStores Boolean @default(false)
+  canEditDirectStores Boolean @default(false)
+  canEditFranchiseStores Boolean @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store       Store?    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storeId, role])
+}
+
+model Member {
+  id             String        @id @default(cuid())
+  organizationId String
+  primaryStoreId String
+  memberNo       String
+  fullName       String
+  phone          String
+  gender         String?
+  birthday       DateTime?
+  tags           String[]
+  notes          String?
+  status         MemberStatus  @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  primaryStore   Store         @relation(fields: [primaryStoreId], references: [id], onDelete: Restrict)
+  familyMembers  FamilyMember[]
+  balanceAccounts MemberAccount[]
+  packageGrants  MemberPackageGrant[]
+  orders         SalesOrder[]
+  refunds        RefundRecord[]
+  followUpTasks  FollowUpTask[]
+  followUps      FollowUpRecord[]
+  vouchers       Voucher[]
+
+  @@unique([organizationId, memberNo])
+  @@unique([organizationId, phone])
+}
+
+model FamilyMember {
+  id            String         @id @default(cuid())
+  memberId      String
+  name          String
+  relation      FamilyRelation
+  birthday      DateTime?
+  gender        String?
+  healthNotes   String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  member        Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+model RechargePlan {
+  id             String     @id @default(cuid())
+  organizationId String
+  name           String
+  rechargeAmount Decimal    @db.Decimal(10, 2)
+  rewardRate     Decimal?   @db.Decimal(5, 2)
+  isEnabled      Boolean    @default(true)
+  sortOrder      Int        @default(0)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  giftItems      RechargePlanGift[]
+}
+
+model RechargePlanGift {
+  id             String     @id @default(cuid())
+  rechargePlanId String
+  serviceItemId  String?
+  productId      String?
+  quantity       Decimal    @db.Decimal(10, 2)
+  createdAt      DateTime   @default(now())
+  rechargePlan   RechargePlan @relation(fields: [rechargePlanId], references: [id], onDelete: Cascade)
+  serviceItem    ServiceItem? @relation(fields: [serviceItemId], references: [id], onDelete: SetNull)
+  product        Product?   @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+model ServiceCategory {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  services       ServiceItem[]
+}
+
+model ServiceItem {
+  id               String            @id @default(cuid())
+  categoryId       String
+  code             String
+  name             String
+  pricingUnit      ServicePricingUnit @default(PER_VISIT)
+  durationMinutes  Int?
+  listPrice        Decimal           @db.Decimal(10, 2)
+  memberPrice      Decimal           @db.Decimal(10, 2)
+  serviceCommission Decimal?         @db.Decimal(10, 2)
+  consumableCostNote String?
+  isEnabled        Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  category         ServiceCategory   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  rechargeGifts    RechargePlanGift[]
+  storePrices      StoreServicePrice[]
+  orderLines       SalesOrderLine[]
+  packageGrants    MemberPackageGrant[]
+  giftVouchers     Voucher[]
+  settlementPolicy ServiceSettlementPolicy?
+}
+
+model ServiceSettlementPolicy {
+  id                 String      @id @default(cuid())
+  serviceItemId      String      @unique
+  allowStoredValue   Boolean     @default(true)
+  allowGiftTimes     Boolean     @default(false)
+  allowProjectVoucher Boolean    @default(false)
+  allowPackage       Boolean     @default(false)
+  packageTemplateName String?
+  note               String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  serviceItem        ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Cascade)
+}
+
+model ProductCategory {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products       Product[]
+}
+
+model Product {
+  id               String          @id @default(cuid())
+  categoryId       String
+  code             String
+  name             String
+  sku              String?
+  listPrice        Decimal         @db.Decimal(10, 2)
+  memberPrice      Decimal         @db.Decimal(10, 2)
+  saleCommission   Decimal?        @db.Decimal(10, 2)
+  tracksInventory  Boolean         @default(true)
+  isConsumable     Boolean         @default(false)
+  isEnabled        Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  category         ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  rechargeGifts    RechargePlanGift[]
+  storePrices      StoreProductPrice[]
+  inventoryItems   InventoryItem[]
+  orderLines       SalesOrderLine[]
+  packageGrants    MemberPackageGrant[]
+}
+
+model StoreServicePrice {
+  id            String      @id @default(cuid())
+  storeId       String
+  serviceItemId String
+  listPrice     Decimal     @db.Decimal(10, 2)
+  memberPrice   Decimal     @db.Decimal(10, 2)
+  isEnabled     Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  store         Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  serviceItem   ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, serviceItemId])
+}
+
+model StoreProductPrice {
+  id         String    @id @default(cuid())
+  storeId    String
+  productId  String
+  listPrice  Decimal   @db.Decimal(10, 2)
+  memberPrice Decimal  @db.Decimal(10, 2)
+  isEnabled  Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  store      Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, productId])
+}
+
+model InventoryItem {
+  id            String            @id @default(cuid())
+  storeId       String
+  productId     String
+  itemType      InventoryItemType @default(PRODUCT)
+  quantity      Decimal           @db.Decimal(10, 2)
+  warningLevel  Decimal?          @db.Decimal(10, 2)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  store         Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product       Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  movements     InventoryMovement[]
+
+  @@unique([storeId, productId])
+}
+
+model InventoryMovement {
+  id              String                @id @default(cuid())
+  inventoryItemId String
+  movementType    InventoryMovementType
+  quantity        Decimal               @db.Decimal(10, 2)
+  note            String?
+  referenceType   String?
+  referenceId     String?
+  createdAt       DateTime              @default(now())
+  inventoryItem   InventoryItem         @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+}
+
+model MemberAccount {
+  id          String            @id @default(cuid())
+  memberId    String
+  accountType MemberAccountType
+  balance     Decimal           @db.Decimal(10, 2)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  member      Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  entries     MemberAccountEntry[]
+
+  @@unique([memberId, accountType])
+}
+
+model MemberAccountEntry {
+  id              String          @id @default(cuid())
+  memberAccountId String
+  amount          Decimal         @db.Decimal(10, 2)
+  balanceAfter    Decimal         @db.Decimal(10, 2)
+  note            String?
+  referenceType   String?
+  referenceId     String?
+  createdAt       DateTime        @default(now())
+  memberAccount   MemberAccount   @relation(fields: [memberAccountId], references: [id], onDelete: Cascade)
+}
+
+model MemberPackageGrant {
+  id              String            @id @default(cuid())
+  memberId        String
+  serviceItemId   String?
+  productId       String?
+  grantType       PackageGrantType
+  totalQuantity   Decimal           @db.Decimal(10, 2)
+  remainingQuantity Decimal         @db.Decimal(10, 2)
+  expiresAt       DateTime?
+  note            String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  member          Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  serviceItem     ServiceItem?      @relation(fields: [serviceItemId], references: [id], onDelete: SetNull)
+  product         Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  settlements     OrderSettlement[]
+
+  @@index([memberId, remainingQuantity])
+}
+
+model SalesOrder {
+  id               String          @id @default(cuid())
+  storeId          String
+  memberId         String?
+  orderNo          String
+  status           OrderStatus     @default(DRAFT)
+  totalAmount      Decimal         @db.Decimal(10, 2)
+  discountAmount   Decimal         @db.Decimal(10, 2)
+  netAmount        Decimal         @db.Decimal(10, 2)
+  note             String?
+  createdById      String
+  completedAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  store            Store           @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  member           Member?         @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  createdBy        User            @relation("SalesOrderCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  lines            SalesOrderLine[]
+  settlements      OrderSettlement[]
+  refunds          RefundRecord[]
+  voucherRedemptions VoucherRedemption[]
+}
+
+model SalesOrderLine {
+  id              String         @id @default(cuid())
+  orderId         String
+  lineType        OrderLineType
+  serviceItemId   String?
+  productId       String?
+  titleSnapshot   String
+  unitPrice       Decimal        @db.Decimal(10, 2)
+  memberUnitPrice Decimal?       @db.Decimal(10, 2)
+  quantity        Decimal        @db.Decimal(10, 2)
+  lineTotal       Decimal        @db.Decimal(10, 2)
+  note            String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  order           SalesOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  serviceItem     ServiceItem?   @relation(fields: [serviceItemId], references: [id], onDelete: SetNull)
+  product         Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  assignments     OrderLineAssignment[]
+  settlements     OrderSettlement[]
+}
+
+model OrderLineAssignment {
+  id             String     @id @default(cuid())
+  orderLineId    String
+  userId         String
+  commissionType CommissionEntryType @default(SERVICE)
+  commissionAmount Decimal  @db.Decimal(10, 2)
+  createdAt      DateTime   @default(now())
+  orderLine      SalesOrderLine @relation(fields: [orderLineId], references: [id], onDelete: Cascade)
+  user           User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  commissionEntries CommissionEntry[]
+}
+
+model OrderSettlement {
+  id                String           @id @default(cuid())
+  orderId           String
+  orderLineId       String?
+  settlementMethod  SettlementMethod
+  settlementStatus  SettlementStatus @default(PENDING)
+  amount            Decimal          @db.Decimal(10, 2)
+  quantity          Decimal?         @db.Decimal(10, 2)
+  packageGrantId    String?
+  voucherId         String?
+  externalTxnId     String?
+  note              String?
+  createdAt         DateTime         @default(now())
+  order             SalesOrder       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderLine         SalesOrderLine?  @relation(fields: [orderLineId], references: [id], onDelete: SetNull)
+  packageGrant      MemberPackageGrant? @relation(fields: [packageGrantId], references: [id], onDelete: SetNull)
+  voucher           Voucher?         @relation(fields: [voucherId], references: [id], onDelete: SetNull)
+}
+
+model RefundRecord {
+  id               String       @id @default(cuid())
+  storeId          String
+  orderId          String?
+  memberId         String?
+  amount           Decimal      @db.Decimal(10, 2)
+  reason           String?
+  reversesCommission Boolean    @default(true)
+  createdAt        DateTime     @default(now())
+  store            Store        @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  order            SalesOrder?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  member           Member?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  commissionEntries CommissionEntry[]
+}
+
+model CommissionEntry {
+  id                String               @id @default(cuid())
+  assignmentId      String?
+  refundRecordId    String?
+  userId            String
+  entryType         CommissionEntryType
+  amount            Decimal              @db.Decimal(10, 2)
+  note              String?
+  createdAt         DateTime             @default(now())
+  assignment        OrderLineAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  refundRecord      RefundRecord?        @relation(fields: [refundRecordId], references: [id], onDelete: SetNull)
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+}
+
+model PromotionCampaign {
+  id               String       @id @default(cuid())
+  organizationId   String
+  title            String
+  campaignType     PromotionCampaignType @default(VOUCHER)
+  description      String?
+  storeOverrideAllowed Boolean  @default(true)
+  startsAt         DateTime?
+  endsAt           DateTime?
+  isEnabled        Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  referralRewardRule ReferralRewardRule?
+  vouchers         Voucher[]
+}
+
+model ReferralRewardRule {
+  id                        String            @id @default(cuid())
+  campaignId                String            @unique
+  triggerReferralCount      Int
+  qualifyingRechargeAmount  Decimal?          @db.Decimal(10, 2)
+  rewardAmount              Decimal           @db.Decimal(10, 2)
+  payoutType                RewardPayoutType  @default(CASHBACK)
+  note                      String?
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  campaign                  PromotionCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+model Voucher {
+  id              String        @id @default(cuid())
+  storeId         String
+  memberId        String?
+  campaignId      String?
+  code            String        @unique
+  title           String
+  discountAmount  Decimal?      @db.Decimal(10, 2)
+  giftServiceId   String?
+  giftQuantity    Decimal?      @db.Decimal(10, 2)
+  status          VoucherStatus @default(ACTIVE)
+  expiresAt       DateTime?
+  redeemedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  store           Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  member          Member?       @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  campaign        PromotionCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  giftService     ServiceItem?  @relation(fields: [giftServiceId], references: [id], onDelete: SetNull)
+  settlements     OrderSettlement[]
+  redemptions     VoucherRedemption[]
+}
+
+model VoucherRedemption {
+  id          String     @id @default(cuid())
+  voucherId   String
+  orderId     String
+  redeemedById String
+  createdAt   DateTime   @default(now())
+  voucher     Voucher    @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  order       SalesOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  redeemedBy  User       @relation(fields: [redeemedById], references: [id], onDelete: Restrict)
+}
+
+model FollowUpTask {
+  id            String           @id @default(cuid())
+  storeId       String
+  memberId      String
+  ownerId       String?
+  taskType      FollowUpTaskType
+  title         String
+  dueAt         DateTime?
+  status        TaskStatus       @default(PENDING)
+  autoGenerated Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  store         Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  member        Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  owner         User?            @relation("TaskOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  records       FollowUpRecord[]
+}
+
+model FollowUpRecord {
+  id          String       @id @default(cuid())
+  taskId       String?
+  memberId     String
+  actorId      String?
+  content      String
+  createdAt    DateTime    @default(now())
+  task         FollowUpTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  member       Member      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  actor        User?       @relation("FollowUpActor", fields: [actorId], references: [id], onDelete: SetNull)
+}
+
+model AuditLog {
+  id           String    @id @default(cuid())
+  userId       String?
+  action       String
+  entityType   String
+  entityId     String?
+  storeId      String?
+  meta         Json?
+  createdAt    DateTime  @default(now())
+  user         User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
